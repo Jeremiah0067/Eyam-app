@@ -265,6 +265,14 @@ const CHECKPOINTS = [
 
 function clamp(v, min = 0, max = 100) { return Math.max(min, Math.min(max, v)); }
 
+function extractYouTubeId(input) {
+  if (!input) return null;
+  const s = input.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(s)) return s; // already a bare video ID
+  const match = s.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+
 const ACCENT = {
   rose:    { border: 'border-rose-700',    bg: 'bg-rose-900/30',    text: 'text-rose-300',    bar: 'bg-rose-500',    btn: 'bg-rose-700 hover:bg-rose-600' },
   amber:   { border: 'border-amber-700',   bg: 'bg-amber-900/30',   text: 'text-amber-300',   bar: 'bg-amber-500',   btn: 'bg-amber-700 hover:bg-amber-600' },
@@ -708,6 +716,9 @@ export default function EyamSimulator() {
   const [isPlaying, setIsPlaying]         = useState(false);
   const [currentTime, setCurrentTime]     = useState(0);
   const [playerReady, setPlayerReady]     = useState(false);
+  const [videoId, setVideoId]             = useState('-nbmEAlCvcQ'); // "The Plague Village" documentary — swap via the loader UI if it ever fails
+  const [loadError, setLoadError]         = useState(false);
+  const [videoInput, setVideoInput]       = useState('');
   const [finalVerdict, setFinalVerdict]   = useState(null);
   const [decisions, setDecisions]         = useState([]);
   const [branchTag, setBranchTag]         = useState(null);
@@ -724,6 +735,7 @@ export default function EyamSimulator() {
 
   const ytRef   = useRef(null);
   const timerRef= useRef(null);
+  const loadTimeoutRef = useRef(null);
   const videoContainerRef = useRef(null);
   const [theaterMode, setTheaterMode] = useState(false);
   const persona = PERSONAS[personaIdx];
@@ -740,26 +752,49 @@ export default function EyamSimulator() {
 
   const toggleTheaterMode = () => setTheaterMode(t => !t);
 
+  // Creates (or re-creates) the YouTube player for a given video ID.
+  // If it isn't ready within 7s, or YouTube reports an error, we surface
+  // a visible error + a box to paste a different video — instead of
+  // spinning on "Loading documentary..." forever.
+  function createPlayer(id) {
+    if (ytRef.current?.destroy) { try { ytRef.current.destroy(); } catch (e) {} }
+    clearTimeout(loadTimeoutRef.current);
+    setPlayerReady(false);
+    setLoadError(false);
+
+    ytRef.current = new window.YT.Player('yt-player', {
+      videoId: id,
+      playerVars: { controls: 0, modestbranding: 1, rel: 0, enablejsapi: 1 },
+      events: {
+        onReady: () => { clearTimeout(loadTimeoutRef.current); setPlayerReady(true); },
+        onStateChange: (e) => setIsPlaying(e.data === window.YT.PlayerState.PLAYING),
+        onError: () => { clearTimeout(loadTimeoutRef.current); setLoadError(true); },
+      },
+    });
+
+    loadTimeoutRef.current = setTimeout(() => {
+      setPlayerReady(ready => { if (!ready) setLoadError(true); return ready; });
+    }, 7000);
+  }
+
+  const handleLoadNewVideo = () => {
+    const id = extractYouTubeId(videoInput);
+    if (!id) return;
+    setVideoId(id);
+    setVideoInput('');
+    createPlayer(id);
+  };
+
   // Load YouTube IFrame API
   useEffect(() => {
-    if (window.YT?.Player) { initPlayer(); return; }
+    if (window.YT?.Player) { createPlayer(videoId); return; }
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
     document.head.appendChild(tag);
-    window.onYouTubeIframeAPIReady = initPlayer;
-    return () => { window.onYouTubeIframeAPIReady = null; };
+    window.onYouTubeIframeAPIReady = () => createPlayer(videoId);
+    return () => { window.onYouTubeIframeAPIReady = null; clearTimeout(loadTimeoutRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function initPlayer() {
-    ytRef.current = new window.YT.Player('yt-player', {
-      videoId: 'nwgKs6QbCOU',
-      playerVars: { controls: 0, modestbranding: 1, rel: 0, enablejsapi: 1 },
-      events: {
-        onReady: () => setPlayerReady(true),
-        onStateChange: (e) => setIsPlaying(e.data === window.YT.PlayerState.PLAYING),
-      },
-    });
-  }
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
@@ -866,7 +901,25 @@ export default function EyamSimulator() {
               : 'relative rounded-xl overflow-hidden bg-black aspect-video shadow-2xl border border-slate-800'}
           >
             <div id="yt-player" className={theaterMode ? 'w-full h-full max-w-6xl max-h-full aspect-video' : 'w-full h-full'} />
-            {!playerReady && (
+            {loadError ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-900 p-5">
+                <div className="text-center max-w-xs w-full">
+                  <AlertTriangle className="w-7 h-7 text-amber-400 mx-auto mb-2" />
+                  <p className="text-slate-200 text-sm font-semibold mb-1">Video didn't load</p>
+                  <p className="text-slate-500 text-xs mb-3">Paste a YouTube link (or just the video ID) to swap it in — no redeploy needed.</p>
+                  <div className="flex gap-2">
+                    <input
+                      value={videoInput}
+                      onChange={e => setVideoInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleLoadNewVideo(); }}
+                      placeholder="https://youtube.com/watch?v=..."
+                      className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-red-600"
+                    />
+                    <button onClick={handleLoadNewVideo} className="bg-red-700 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg font-semibold flex-shrink-0">Load</button>
+                  </div>
+                </div>
+              </div>
+            ) : !playerReady && (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
                 <div className="text-center">
                   <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
