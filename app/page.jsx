@@ -725,23 +725,20 @@ export default function EyamSimulator() {
   const ytRef   = useRef(null);
   const timerRef= useRef(null);
   const videoContainerRef = useRef(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [theaterMode, setTheaterMode] = useState(false);
   const persona = PERSONAS[personaIdx];
 
-  // Track native fullscreen state (in case the user exits with Esc, not our button)
+  // Theater mode is plain CSS overlay (not the browser's native Fullscreen API),
+  // so it can never hide the checkpoint popup behind it and never needs an
+  // async exit call that might fail. Escape key backs out of it too.
   useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onFsChange);
-    return () => document.removeEventListener('fullscreenchange', onFsChange);
-  }, []);
+    if (!theaterMode) return;
+    const onKey = (e) => { if (e.key === 'Escape') setTheaterMode(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [theaterMode]);
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      videoContainerRef.current?.requestFullscreen?.();
-    } else {
-      document.exitFullscreen?.();
-    }
-  };
+  const toggleTheaterMode = () => setTheaterMode(t => !t);
 
   // Load YouTube IFrame API
   useEffect(() => {
@@ -772,7 +769,7 @@ export default function EyamSimulator() {
         for (const cp of CHECKPOINTS) {
           if (!completedIds.has(cp.id) && t >= cp.timestamp && t < cp.timestamp + 3) {
             ytRef.current.pauseVideo();
-            if (document.fullscreenElement) document.exitFullscreen?.();
+            setTheaterMode(false);
             setActiveCheckpoint(cp);
             break;
           }
@@ -862,8 +859,13 @@ export default function EyamSimulator() {
         {/* LEFT: VIDEO */}
         <div className="lg:col-span-2 space-y-4">
 
-          <div ref={videoContainerRef} className="relative rounded-xl overflow-hidden bg-black aspect-video shadow-2xl border border-slate-800">
-            <div id="yt-player" className="w-full h-full" />
+          <div
+            ref={videoContainerRef}
+            className={theaterMode
+              ? 'fixed inset-0 z-40 bg-black flex items-center justify-center p-2 sm:p-6'
+              : 'relative rounded-xl overflow-hidden bg-black aspect-video shadow-2xl border border-slate-800'}
+          >
+            <div id="yt-player" className={theaterMode ? 'w-full h-full max-w-6xl max-h-full aspect-video' : 'w-full h-full'} />
             {!playerReady && (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
                 <div className="text-center">
@@ -871,6 +873,14 @@ export default function EyamSimulator() {
                   <p className="text-slate-400 text-xs">Loading documentary…</p>
                 </div>
               </div>
+            )}
+            {theaterMode && (
+              <button
+                onClick={toggleTheaterMode}
+                className="absolute top-3 right-3 flex items-center gap-2 bg-slate-900/80 hover:bg-slate-800 text-slate-200 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-slate-700"
+              >
+                <Minimize2 className="w-3.5 h-3.5" /> Exit Theater Mode (Esc)
+              </button>
             )}
           </div>
 
@@ -880,9 +890,9 @@ export default function EyamSimulator() {
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               {isPlaying ? 'Pause' : 'Play'}
             </button>
-            <button onClick={toggleFullscreen} disabled={!playerReady} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors border border-slate-700">
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-              {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            <button onClick={toggleTheaterMode} disabled={!playerReady} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors border border-slate-700">
+              {theaterMode ? <Minimize2 className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              {theaterMode ? 'Exit Theater Mode' : 'Theater Mode'}
             </button>
             <span className="text-xs text-slate-400 font-mono">{formatTime(currentTime)}</span>
             <div className="flex gap-2 flex-wrap">
