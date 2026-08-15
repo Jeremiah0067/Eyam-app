@@ -606,10 +606,100 @@ function TutorDashboard({ decisions, journals, persona, villageSurvival, nationa
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// INTRO / BRIEFING SCREEN
+// ─────────────────────────────────────────────────────────────────────────────
+
+function IntroScreen({ persona, personaIdx, setPersonaIdx, onStart }) {
+  const ac = ACCENT[persona.accent];
+
+  const HOW_IT_WORKS = [
+    { icon: <Play className="w-4 h-4" />, title: 'Watch', text: 'A short documentary about the 1665–66 Eyam plague quarantine plays automatically.' },
+    { icon: <AlertTriangle className="w-4 h-4" />, title: 'Pause at checkpoints', text: 'Three times, the video stops itself at a key moment and shows you a real historical source.' },
+    { icon: <Clock className="w-4 h-4" />, title: 'Debate first', text: 'A short countdown timer gives you and your class time to discuss the discussion questions before deciding — no rushing to the button.' },
+    { icon: <Users className="w-4 h-4" />, title: 'Decide in character', text: 'You choose how your persona responds. Your earlier choices can open or close options later — the story branches.' },
+    { icon: <Star className="w-4 h-4" />, title: 'See the ethics', text: 'After each decision, see how a Utilitarian, a Kantian, and a Buddhist thinker would judge what you chose.' },
+    { icon: <FileText className="w-4 h-4" />, title: 'Journal & evidence', text: 'Write a short in-character reflection after each checkpoint, and unlock real historical documents as you go.' },
+    { icon: <Award className="w-4 h-4" />, title: 'Get your verdict', text: 'At the end, see your Village Survival and National Safety scores, your historical accuracy score, and the class-wide verdict board.' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex items-center justify-center px-4 py-10">
+      <div className="max-w-2xl w-full">
+
+        {/* Title */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Skull className="w-6 h-6 text-red-500" />
+            <h1 className="font-bold text-white text-2xl tracking-tight">Eyam 1665</h1>
+          </div>
+          <p className="text-slate-400 text-sm">The Boundary Stone Dilemma — Interactive Documentary & Ethics Simulator</p>
+        </div>
+
+        {/* What this is */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-4">
+          <p className="text-slate-300 text-sm leading-relaxed">
+            In 1665, plague reached the English village of Eyam. Rather than flee, the village agreed to seal itself off completely — no one in, no one out — to stop the disease spreading to nearby towns. Roughly three in four villagers died. Here, you'll live through that decision from inside the village, as a real historical figure, and decide for yourself whether it was the right thing to do.
+          </p>
+        </div>
+
+        {/* How it works */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-4">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">How it works</h2>
+          <div className="space-y-3">
+            {HOW_IT_WORKS.map((step, i) => (
+              <div key={i} className="flex gap-3">
+                <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 text-slate-400">
+                  {step.icon}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{step.title}</p>
+                  <p className="text-xs text-slate-400 leading-relaxed">{step.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Persona picker */}
+        <div className={`border rounded-2xl p-5 mb-6 ${ac.border} ${ac.bg}`}>
+          <div className="flex items-center justify-between mb-3">
+            <span className={`text-xs font-semibold uppercase tracking-wider ${ac.text}`}>Choose who you'll play</span>
+            <button onClick={() => setPersonaIdx(i => (i + 1) % PERSONAS.length)} className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors">
+              <RefreshCw className="w-3 h-3" /> Re-roll
+            </button>
+          </div>
+          <div className="flex items-start gap-3 mb-3">
+            <span className="text-3xl">{persona.icon}</span>
+            <div>
+              <h2 className="font-bold text-white text-base">{persona.name}</h2>
+              <p className={`text-xs font-medium ${ac.text}`}>{persona.role} — {persona.status}</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-300 italic leading-relaxed mb-3">"{persona.motive}"</p>
+          <div className="grid grid-cols-2 gap-2">
+            {PERSONAS.map((p, i) => (
+              <button key={i} onClick={() => setPersonaIdx(i)} className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-colors ${i === personaIdx ? 'bg-slate-700 text-white' : 'bg-slate-900/40 text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                <span>{p.icon}</span><span className="font-medium truncate">{p.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button onClick={onStart} className="w-full bg-red-800 hover:bg-red-700 text-white py-3 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+          Begin the Simulation <ChevronRight className="w-4 h-4" />
+        </button>
+        <p className="text-center text-xs text-slate-600 mt-3">You can switch persona later from the sidebar too.</p>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function EyamSimulator() {
+  const [started, setStarted]             = useState(false);
   const [personaIdx, setPersonaIdx]       = useState(0);
   const [villageSurvival, setVillageSurvival] = useState(100);
   const [nationalSafety, setNationalSafety]   = useState(50);
@@ -730,6 +820,17 @@ export default function EyamSimulator() {
   const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
   const allEvidence = EVIDENCE.filter(e => unlockedEvidence.includes(e.id));
+
+  if (!started) {
+    return (
+      <IntroScreen
+        persona={persona}
+        personaIdx={personaIdx}
+        setPersonaIdx={setPersonaIdx}
+        onStart={() => setStarted(true)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
