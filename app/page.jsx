@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Shield, Skull, RefreshCw, Play, Pause, ChevronRight, BookOpen,
   Users, AlertTriangle, CheckCircle, Clock, FileText, Map,
-  Lock, Unlock, Star, BarChart3, Eye, EyeOff, Send, Award, Flame
+  Lock, Unlock, Star, BarChart3, Eye, EyeOff, Send, Award, Flame,
+  Maximize, Minimize2
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -633,7 +634,24 @@ export default function EyamSimulator() {
 
   const ytRef   = useRef(null);
   const timerRef= useRef(null);
+  const videoContainerRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const persona = PERSONAS[personaIdx];
+
+  // Track native fullscreen state (in case the user exits with Esc, not our button)
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      videoContainerRef.current?.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  };
 
   // Load YouTube IFrame API
   useEffect(() => {
@@ -664,6 +682,7 @@ export default function EyamSimulator() {
         for (const cp of CHECKPOINTS) {
           if (!completedIds.has(cp.id) && t >= cp.timestamp && t < cp.timestamp + 3) {
             ytRef.current.pauseVideo();
+            if (document.fullscreenElement) document.exitFullscreen?.();
             setActiveCheckpoint(cp);
             break;
           }
@@ -742,7 +761,7 @@ export default function EyamSimulator() {
         {/* LEFT: VIDEO */}
         <div className="lg:col-span-2 space-y-4">
 
-          <div className="relative rounded-xl overflow-hidden bg-black aspect-video shadow-2xl border border-slate-800">
+          <div ref={videoContainerRef} className="relative rounded-xl overflow-hidden bg-black aspect-video shadow-2xl border border-slate-800">
             <div id="yt-player" className="w-full h-full" />
             {!playerReady && (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
@@ -759,6 +778,10 @@ export default function EyamSimulator() {
             <button onClick={handlePlay} disabled={!playerReady} className="flex items-center gap-2 bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               {isPlaying ? 'Pause' : 'Play'}
+            </button>
+            <button onClick={toggleFullscreen} disabled={!playerReady} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors border border-slate-700">
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
             </button>
             <span className="text-xs text-slate-400 font-mono">{formatTime(currentTime)}</span>
             <div className="flex gap-2 flex-wrap">
